@@ -6,7 +6,7 @@ from app.config import settings
 
 router = APIRouter()
 
-# Pydantic Models
+# Pydantic v1 Models
 class EmbeddingRequest(BaseModel):
     text: str
 
@@ -24,14 +24,14 @@ async def get_embeddings(request: EmbeddingRequest):
         # OpenAI Client konfigurieren
         openai.api_key = settings.OPENAI_API_KEY
         
-        # Embedding erstellen
-        response = openai.embeddings.create(
+        # Embedding erstellen (OpenAI v0.28.0 Syntax)
+        response = openai.Embedding.create(
             model="text-embedding-ada-002",
             input=request.text
         )
         
-        embedding = response.data[0].embedding
-        token_count = response.usage.total_tokens
+        embedding = response['data'][0]['embedding']
+        token_count = response['usage']['total_tokens']
         
         return EmbeddingResponse(
             embedding=embedding,
