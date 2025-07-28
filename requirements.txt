@@ -1,0 +1,8 @@
+fastapi
+uvicorn[standard]
+openai
+langchain
+pinecone-client
+pandas
+numpy
+tiktoken
