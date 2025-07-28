@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from app.api.ai import embeddings
 
 app = FastAPI(title="ShoppiQ Backend", version="1.0.0")
 
@@ -12,9 +13,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# API routers werden später hinzugefügt, wenn die Module existieren
-# app.include_router(embeddings.router, prefix="/api/ai", tags=["AI"])
-# app.include_router(shopping.router, prefix="/api/vectors", tags=["Vectors"])
+# API routers registrieren
+app.include_router(embeddings.router, prefix="/api/ai", tags=["AI"])
 
 @app.get("/")
 async def root():
