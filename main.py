@@ -1,0 +1,1 @@
+print("ShoppiQ Backend läuft!")
