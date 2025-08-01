@@ -1,7 +1,43 @@
-fastapi==0.95.0
-uvicorn[standard]==0.21.0
+# fastapi==0.95.0
+# uvicorn[standard]==0.21.0
+# python-dotenv==1.0.0
+# httpx==0.24.1
+# openai==0.28.0
+# pinecone-client==2.2.4
+# python-multipart==0.0.6
+
+# Core FastAPI
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
 python-dotenv==1.0.0
-httpx==0.24.1
-openai==0.28.0
-pinecone-client==2.2.4
 python-multipart==0.0.6
+
+# HTTP Client
+httpx==0.25.2
+
+# OpenAI (neueste Version)
+openai==1.3.7
+
+# Vektordatenbank
+pinecone-client==2.2.4
+
+# Datenverarbeitung für KI/ML
+pandas==2.1.4
+numpy==1.25.2
+
+# Für Rezept- und Produktanalyse
+scikit-learn==1.3.2
+nltk==3.8.1
+
+# Async Database (falls needed)
+asyncpg==0.29.0
+sqlalchemy==2.0.23
+
+# Pydantic für Datenvalidierung
+pydantic==2.5.0
+
+# Logging und Monitoring
+structlog==23.2.0
+
+# Memory-optimierte JSON Verarbeitung
+orjson==3.9.10
