@@ -43,14 +43,28 @@ async def chat_about_shopping_list(request: ShoppingListChatRequest):
     Nutzt ähnliche Listen aus Pinecone als Kontext.
     """
     try:
+        # DEBUG: Eingehende Daten loggen
+        print(f"🔍 Received shopping list with {len(request.shopping_list)} items")
+        if request.shopping_list:
+            for i, item in enumerate(request.shopping_list[:3]):  # Zeige nur erste 3
+                print(f"  {i+1}. {item.get('name', 'Unnamed')} - {item.get('brand', 'No brand')} (qty: {item.get('quantity', 0)})")
+            if len(request.shopping_list) > 3:
+                print(f"  ... und {len(request.shopping_list) - 3} weitere Items")
+        
+        print(f"🔍 Received {len(request.similar_lists)} similar lists")
+        for similar in request.similar_lists[:2]:
+            print(f"  - {similar.get('name', 'Unnamed list')}")
+        
         # Aktuelle Einkaufsliste als String formatieren
         if request.shopping_list:
             list_text = "\n".join([
                 f"- {item['name']} (Menge: {item.get('quantity', 1)}, Supermarkt: {item.get('supermarkt', 'unbekannt')}, Status: {'✓ gekauft' if item.get('isChecked', False) else '○ offen'})"
                 for item in request.shopping_list
             ])
+            print(f"📝 Formatted list text: {list_text[:200]}...")  # Erste 200 Zeichen
         else:
             list_text = "Die Einkaufsliste ist aktuell leer."
+            print("❌ No items in shopping list")
         
         # ERWEITERT: Ähnliche Listen als Kontext hinzufügen
         similar_context = ""
@@ -140,6 +154,8 @@ Sei freundlich, hilfsbereit und nutze die Historie intelligent!
         # Aktuelle User-Nachricht hinzufügen
         messages.append({"role": "user", "content": request.message})
 
+        print(f"🤖 Sending {len(messages)} messages to OpenAI (system + history + current)")
+
         response = client.chat.completions.create(
             model="gpt-4o",
             messages=messages,
@@ -148,6 +164,8 @@ Sei freundlich, hilfsbereit und nutze die Historie intelligent!
         )
         
         ai_response = response.choices[0].message.content
+        print(f"🤖 AI Response length: {len(ai_response)} chars")
+        print(f"🤖 AI Response preview: {ai_response[:150]}...")
         
         # Prüfen ob Liste geändert wurde
         updated_list = None
@@ -179,6 +197,8 @@ Sei freundlich, hilfsbereit und nutze die Historie intelligent!
                 json_start = ai_response.find("[")
                 json_end = ai_response.rfind("]") + 1
                 json_str = ai_response[json_start:json_end]
+                
+                print(f"🔧 Attempting to parse JSON: {json_str[:100]}...")
                 
                 # Parse JSON
                 raw_list = json.loads(json_str)
@@ -233,9 +253,12 @@ Sei freundlich, hilfsbereit und nutze die Historie intelligent!
                 updated_list = []
                 print("⚠️ Used fallback: created empty list")
         
-        # Debug-Output
-        print(f"🔍 Action performed: {action_performed}")
-        print(f"📋 Updated list items: {len(updated_list) if updated_list else 0}")
+        # Final Debug-Output
+        print(f"🔍 Final action performed: {action_performed}")
+        print(f"📋 Final updated list items: {len(updated_list) if updated_list else 0}")
+        if updated_list:
+            for i, item in enumerate(updated_list[:3]):
+                print(f"  {i+1}. {item.name} (qty: {item.quantity})")
         
         return ShoppingListChatResponse(
             response=ai_response,
@@ -245,6 +268,8 @@ Sei freundlich, hilfsbereit und nutze die Historie intelligent!
         
     except Exception as e:
         print(f"❌ Chat error: {str(e)}")
+        import traceback
+        print(f"❌ Traceback: {traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=f"Chat-Fehler: {str(e)}")
 
 @router.post("/shopping-list-suggestions")
@@ -256,6 +281,8 @@ async def get_shopping_suggestions(request: Dict[str, Any]):
     try:
         shopping_list = request.get("shopping_list", [])
         similar_lists = request.get("similar_lists", [])
+        
+        print(f"📋 Suggestions request: {len(shopping_list)} items, {len(similar_lists)} similar lists")
         
         # Aktuelle Liste formatieren
         if shopping_list:
@@ -299,7 +326,10 @@ Antworte in kurzen, praktischen Stichpunkten mit Emojis.
             max_tokens=800
         )
         
-        return {"suggestions": response.choices[0].message.content}
+        suggestions = response.choices[0].message.content
+        print(f"✅ Generated suggestions: {len(suggestions)} chars")
+        
+        return {"suggestions": suggestions}
         
     except Exception as e:
         print(f"❌ Suggestions error: {str(e)}")
