@@ -34,6 +34,24 @@ class ShoppingListChatResponse(BaseModel):
     response: str
     updated_list: Optional[List[ShoppingItemResponse]] = None  # Strukturierte Items
     action_performed: Optional[str] = None  # "added", "removed", "modified", "none"
+    # NEU: Navigation & App-Control
+    navigation_action: Optional[str] = None  # "show_shopping_list", "show_cooking", etc.
+    app_actions: Optional[List[Dict[str, Any]]] = None  # Erweiterte App-Aktionen
+
+# NEU: Funktion für Navigation-Erkennung HINZUFÜGEN:
+def detect_navigation_intent(message: str, response: str) -> Optional[str]:
+    lower_msg = message.lower()
+    lower_resp = response.lower()
+    
+    # Navigation-Keywords
+    if any(keyword in lower_msg for keyword in ["zeig mir meine", "gehe zu einkauf", "shopping liste", "einkaufsliste"]):
+        return "show_shopping_list"
+    elif any(keyword in lower_msg for keyword in ["gehe zu kochen", "kochplan", "rezepte", "cooking"]):
+        return "show_cooking"
+    elif any(keyword in lower_msg for keyword in ["shopping screen", "einkaufen gehen"]):
+        return "show_shopping_screen"
+    
+    return None
 
 @router.post("/shopping-list-chat", response_model=ShoppingListChatResponse)
 async def chat_about_shopping_list(request: ShoppingListChatRequest):
@@ -260,10 +278,25 @@ Sei freundlich, hilfsbereit und nutze die Historie intelligent!
             for i, item in enumerate(updated_list[:3]):
                 print(f"  {i+1}. {item.name} (qty: {item.quantity})")
         
+        # NEU: Navigation und App-Aktionen erkennen
+        navigation_action = detect_navigation_intent(request.message, ai_response)
+        app_actions = []
+
+        # Spezielle Aktionen
+        if "vibriere" in request.message.lower():
+            app_actions.append({"type": "vibrate"})
+        
+        if "sprich" in request.message.lower() or "sage" in request.message.lower():
+            clean_response = ai_response.replace(json_str if 'json_str' in locals() else '', '').strip()
+            app_actions.append({"type": "speech_output", "text": clean_response})
+
+        # ÄNDERN: Return Statement erweitern
         return ShoppingListChatResponse(
             response=ai_response,
             updated_list=updated_list,
-            action_performed=action_performed
+            action_performed=action_performed,
+            navigation_action=navigation_action,  # NEU
+            app_actions=app_actions if app_actions else None  # NEU
         )
         
     except Exception as e:
