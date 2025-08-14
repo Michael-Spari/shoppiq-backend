@@ -7,7 +7,8 @@ from datetime import datetime
 
 # OpenAI & Pinecone
 from openai import OpenAI
-from pinecone import Pinecone
+# ✅ ALTE STABILE PINECONE SYNTAX
+import pinecone
 
 # Firebase
 import firebase_admin
@@ -20,8 +21,14 @@ router = APIRouter()
 
 # Initialize services
 client = OpenAI(api_key=settings.OPENAI_API_KEY)
-pc = Pinecone(api_key=settings.PINECONE_API_KEY)
-index = pc.Index(settings.PINECONE_INDEX_NAME)
+
+# ✅ ALTE PINECONE INITIALISIERUNG
+pinecone.init(
+    api_key=settings.PINECONE_API_KEY,
+    environment=settings.PINECONE_ENVIRONMENT
+)
+index = pinecone.Index(settings.PINECONE_INDEX_NAME)
+
 db = firestore.client()
 
 # Request/Response Models
