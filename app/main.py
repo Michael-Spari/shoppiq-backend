@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.api.ai import embeddings
 from app.api.v1 import chat
+from app.api.v1 import chat, generate_shopping_list
 
 app = FastAPI(title="ShoppiQ Backend", version="1.0.0")
 
@@ -17,6 +18,7 @@ app.add_middleware(
 # WICHTIG: Router mit korrekten Pfaden registrieren
 app.include_router(embeddings.router, prefix="/api/ai", tags=["AI"])
 app.include_router(chat.router, prefix="/api/v1", tags=["Shopping Chat"])
+app.include_router(generate_shopping_list.router, prefix="/api/v1", tags=["Shopping List"])
 
 @app.get("/")
 async def root():
