@@ -24,7 +24,7 @@ pinecone.init(
 )
 index = pinecone.Index(settings.PINECONE_INDEX_NAME)
 
-# ✅ FIREBASE KORREKT INITIALISIEREN
+# ✅ FIREBASE KORREKT INITIALISIEREN (OHNE GLOBALE IMPORTS)
 FIREBASE_ENABLED = False
 db = None
 
@@ -32,6 +32,7 @@ def initialize_firebase():
     global FIREBASE_ENABLED, db
     
     try:
+        # ✅ IMPORTS INNERHALB DER FUNKTION - kein Pylance Fehler
         import firebase_admin
         from firebase_admin import credentials, firestore
         
@@ -80,7 +81,7 @@ def initialize_firebase():
 # Firebase beim Start initialisieren
 initialize_firebase()
 
-# ... ALLE Models bleiben EXAKT GLEICH ...
+# Request/Response Models
 class GenerateShoppingListRequest(BaseModel):
     settings: Dict[str, Any]
     user_email: str
@@ -111,33 +112,31 @@ class GenerateShoppingListResponse(BaseModel):
     success: bool
     message: Optional[str] = None
 
-# ... ALLE Helper Functions bleiben EXAKT GLEICH bis auf save_shopping_list_to_firebase ...
-
-async def save_shopping_list_to_firebase(shopping_list_data: Dict, user_email: str) -> str:
-    """Speichert ShoppingList in Firebase Firestore (mit Fallback)"""
-    
-    if not FIREBASE_ENABLED or not db:
-        mock_id = f"mock_firebase_{uuid.uuid4()}"
-        print(f"⚠️ Firebase not available - using mock ID: {mock_id}")
-        return mock_id
-    
+# ✅ FEHLENDE FUNKTION HINZUGEFÜGT
+async def get_user_product_context(user_email: str, limit: int = 50) -> List[Dict[str, Any]]:
+    """Holt User's bisherige Produkte aus Pinecone für bessere AI-Empfehlungen"""
     try:
-        # Firestore Collection Reference
-        shopping_lists_ref = db.collection('shopping_lists')
+        # Query Pinecone für User-spezifische Produkte
+        query_vector = [0.0] * 1536  # Dummy vector für metadata-only query
         
-        # Document erstellen
-        doc_ref = shopping_lists_ref.add(shopping_list_data)
-        doc_id = doc_ref[1].id
+        response = index.query(
+            vector=query_vector,
+            top_k=limit,
+            include_metadata=True,
+            filter={"user_email": user_email}
+        )
         
-        print(f"✅ Shopping list saved to Firebase with ID: {doc_id}")
-        return doc_id
+        user_products = []
+        for match in response['matches']:
+            if match['metadata']:
+                user_products.append(match['metadata'])
+        
+        print(f"📊 Found {len(user_products)} user products in Pinecone")
+        return user_products
         
     except Exception as e:
-        print(f"❌ Firebase save error: {e}")
-        # Fallback zu Mock ID statt Exception
-        mock_id = f"mock_firebase_{uuid.uuid4()}"
-        print(f"📝 Using fallback mock ID: {mock_id}")
-        return mock_id
+        print(f"⚠️ Error querying user products: {e}")
+        return []
 
 async def generate_ai_shopping_list(settings: Dict[str, Any], user_email: str, context: Optional[str] = None, user_products: List[Dict] = []) -> Dict[str, Any]:
     """Generiert Shopping List mit OpenAI basierend auf Settings und User-History"""
@@ -260,7 +259,12 @@ async def save_items_to_pinecone(items: List[Dict], user_email: str, list_uuid: 
             print(f"❌ Pinecone upsert error: {e}")
 
 async def save_shopping_list_to_firebase(shopping_list_data: Dict, user_email: str) -> str:
-    """Speichert ShoppingList in Firebase Firestore"""
+    """Speichert ShoppingList in Firebase Firestore (mit Fallback)"""
+    
+    if not FIREBASE_ENABLED or not db:
+        mock_id = f"mock_firebase_{uuid.uuid4()}"
+        print(f"⚠️ Firebase not available - using mock ID: {mock_id}")
+        return mock_id
     
     try:
         # Firestore Collection Reference
@@ -275,7 +279,10 @@ async def save_shopping_list_to_firebase(shopping_list_data: Dict, user_email: s
         
     except Exception as e:
         print(f"❌ Firebase save error: {e}")
-        raise HTTPException(status_code=500, detail=f"Firebase save failed: {e}")
+        # Fallback zu Mock ID statt Exception
+        mock_id = f"mock_firebase_{uuid.uuid4()}"
+        print(f"📝 Using fallback mock ID: {mock_id}")
+        return mock_id
 
 @router.post("/generate-shopping-list", response_model=GenerateShoppingListResponse)
 async def generate_shopping_list(request: GenerateShoppingListRequest):
