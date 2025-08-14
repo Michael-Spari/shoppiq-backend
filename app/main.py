@@ -9,7 +9,7 @@ from app.api.ai import embeddings
 from app.api.v1 import chat, generate_shopping_list
 
 # Config
-from app.core.config import settings
+from app.config import settings
 
 # FastAPI App
 app = FastAPI(
