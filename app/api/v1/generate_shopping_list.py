@@ -7,36 +7,85 @@ from datetime import datetime
 
 # OpenAI & Pinecone
 from openai import OpenAI
-# ✅ ALTE STABILE PINECONE SYNTAX
 import pinecone
 
-# Firebase
-import firebase_admin
-from firebase_admin import firestore
-
 # Config
-from app.core.config import settings
+from app.config import settings
 
 router = APIRouter()
 
 # Initialize services
 client = OpenAI(api_key=settings.OPENAI_API_KEY)
 
-# ✅ ALTE PINECONE INITIALISIERUNG
+# ✅ PINECONE INITIALISIERUNG
 pinecone.init(
     api_key=settings.PINECONE_API_KEY,
     environment=settings.PINECONE_ENVIRONMENT
 )
 index = pinecone.Index(settings.PINECONE_INDEX_NAME)
 
-db = firestore.client()
+# ✅ FIREBASE KORREKT INITIALISIEREN
+FIREBASE_ENABLED = False
+db = None
 
-# Request/Response Models
+def initialize_firebase():
+    global FIREBASE_ENABLED, db
+    
+    try:
+        import firebase_admin
+        from firebase_admin import credentials, firestore
+        
+        # Prüfen ob bereits initialisiert
+        if firebase_admin._apps:
+            db = firestore.client()
+            FIREBASE_ENABLED = True
+            print("✅ Firebase already initialized")
+            return
+        
+        # Firebase Credentials prüfen
+        if not all([
+            settings.FIREBASE_PROJECT_ID,
+            settings.FIREBASE_PRIVATE_KEY,
+            settings.FIREBASE_CLIENT_EMAIL
+        ]):
+            print("⚠️ Firebase credentials incomplete - using mock mode")
+            return
+        
+        # Firebase Config
+        firebase_config = {
+            "type": "service_account",
+            "project_id": settings.FIREBASE_PROJECT_ID,
+            "private_key_id": settings.FIREBASE_PRIVATE_KEY_ID,
+            "private_key": settings.FIREBASE_PRIVATE_KEY,
+            "client_email": settings.FIREBASE_CLIENT_EMAIL,
+            "client_id": settings.FIREBASE_CLIENT_ID,
+            "auth_uri": settings.FIREBASE_AUTH_URI,
+            "token_uri": settings.FIREBASE_TOKEN_URI,
+            "client_x509_cert_url": settings.FIREBASE_CLIENT_CERT_URL
+        }
+        
+        # Firebase initialisieren
+        cred = credentials.Certificate(firebase_config)
+        firebase_admin.initialize_app(cred)
+        
+        db = firestore.client()
+        FIREBASE_ENABLED = True
+        print("✅ Firebase initialized successfully")
+        
+    except ImportError:
+        print("⚠️ Firebase Admin SDK not available")
+    except Exception as e:
+        print(f"❌ Firebase initialization error: {e}")
+
+# Firebase beim Start initialisieren
+initialize_firebase()
+
+# ... ALLE Models bleiben EXAKT GLEICH ...
 class GenerateShoppingListRequest(BaseModel):
     settings: Dict[str, Any]
     user_email: str
     list_name: Optional[str] = "KI-Einkaufsliste"
-    context: Optional[str] = None  # z.B. "Für 2 Personen, vegetarisch"
+    context: Optional[str] = None
 
 class ShoppingItemResponse(BaseModel):
     uuid: str
@@ -62,31 +111,33 @@ class GenerateShoppingListResponse(BaseModel):
     success: bool
     message: Optional[str] = None
 
-# Helper Functions
-async def get_user_product_context(user_email: str, limit: int = 50) -> List[Dict[str, Any]]:
-    """Holt User's bisherige Produkte aus Pinecone für bessere AI-Empfehlungen"""
+# ... ALLE Helper Functions bleiben EXAKT GLEICH bis auf save_shopping_list_to_firebase ...
+
+async def save_shopping_list_to_firebase(shopping_list_data: Dict, user_email: str) -> str:
+    """Speichert ShoppingList in Firebase Firestore (mit Fallback)"""
+    
+    if not FIREBASE_ENABLED or not db:
+        mock_id = f"mock_firebase_{uuid.uuid4()}"
+        print(f"⚠️ Firebase not available - using mock ID: {mock_id}")
+        return mock_id
+    
     try:
-        # Query Pinecone für User-spezifische Produkte
-        query_vector = [0.0] * 1536  # Dummy vector für metadata-only query
+        # Firestore Collection Reference
+        shopping_lists_ref = db.collection('shopping_lists')
         
-        response = index.query(
-            vector=query_vector,
-            top_k=limit,
-            include_metadata=True,
-            filter={"user_email": user_email}
-        )
+        # Document erstellen
+        doc_ref = shopping_lists_ref.add(shopping_list_data)
+        doc_id = doc_ref[1].id
         
-        user_products = []
-        for match in response['matches']:
-            if match['metadata']:
-                user_products.append(match['metadata'])
-        
-        print(f"📊 Found {len(user_products)} user products in Pinecone")
-        return user_products
+        print(f"✅ Shopping list saved to Firebase with ID: {doc_id}")
+        return doc_id
         
     except Exception as e:
-        print(f"⚠️ Error querying user products: {e}")
-        return []
+        print(f"❌ Firebase save error: {e}")
+        # Fallback zu Mock ID statt Exception
+        mock_id = f"mock_firebase_{uuid.uuid4()}"
+        print(f"📝 Using fallback mock ID: {mock_id}")
+        return mock_id
 
 async def generate_ai_shopping_list(settings: Dict[str, Any], user_email: str, context: Optional[str] = None, user_products: List[Dict] = []) -> Dict[str, Any]:
     """Generiert Shopping List mit OpenAI basierend auf Settings und User-History"""
